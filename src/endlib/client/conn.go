@@ -44,6 +44,8 @@ func Handle(conn *net.TCPConn, srv *server.Server) {
         srv.Eids <- myEid // return free eid
     }()
 
+    fmt.Printf("dbg: in case you care, my eid is %d\n", myEid)
+
 	handleLogin(c, myEid)
 
 	fmt.Println("dbg: handled login, getting inv data")
@@ -233,7 +235,7 @@ func Handle(conn *net.TCPConn, srv *server.Server) {
 			pmp.Pitch = ppal.Pitch
 			pmp.OnGround = ppal.OnGround
 
-            fmt.Printf("Debug: PPAL: %f,%f,%f\n", pmp.X, pmp.Y, pmp.Z)
+            //fmt.Printf("Debug: PPAL: %f,%f,%f\n", pmp.X, pmp.Y, pmp.Z)
 
 			srv.Location.Notify <- pmp
 
@@ -244,7 +246,7 @@ func Handle(conn *net.TCPConn, srv *server.Server) {
 			pmp.Z = pp.Z
 			pmp.OnGround = pp.OnGround
 
-            fmt.Printf("Debug: PP: %f,%f,%f\n", pmp.X, pmp.Y, pmp.Z)
+            //fmt.Printf("Debug: PP: %f,%f,%f\n", pmp.X, pmp.Y, pmp.Z)
 
 			srv.Location.Notify <- pmp
 
@@ -254,7 +256,7 @@ func Handle(conn *net.TCPConn, srv *server.Server) {
 			pmp.Pitch = pl.Pitch
 			pmp.OnGround = pl.OnGround
 
-            fmt.Printf("Debug: PL: %f,%f,%f\n", pmp.X, pmp.Y, pmp.Z)
+            //fmt.Printf("Debug: PL: %f,%f,%f\n", pmp.X, pmp.Y, pmp.Z)
 
 			srv.Location.Notify <- pmp
 

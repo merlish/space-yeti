@@ -73,7 +73,7 @@ func (c *CConn) readDouble() float64 {
     //bs := c.readBytes(8)
     //f := math.Float64frombits((int64(bs[7]) << 64) + (int64(bs[6]) << 48) + (int64(bs[5]) << 40) + (int64(bs[4]) << 32) + (int64(bs[3]) << 24) + (int64(bs[2]) << 16) + (int64(bs[1]) << 8) + int64(bs[0])
     f := math.Float64frombits(uint64(c.readLong()))
-    fmt.Printf("DEEBBUUGG: %f\n", f)
+    //fmt.Printf("DEEBBUUGG: %f\n", f)
     return f
 
     /*
