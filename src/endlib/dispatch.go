@@ -23,6 +23,8 @@ func Listen(srv *server.Server) (ok bool) {
 	}
 	defer ln.Close()
 
+    fmt.Println("\nStarted listening on :31337.  Awaiting connections.")
+
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
