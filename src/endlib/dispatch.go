@@ -15,12 +15,6 @@ func Listen(srv *server.Server) (ok bool) {
 	// TODO: take args for where to listen on
 
 	// create listener & await connections. close at end of func.
-	/*addr, err0 := net.ResolveTCPAddr("tcp", ":31337")
-	  if err0 != nil {
-	      panic("failed to resolve local tcp addr. fuck")
-	  }*/
-
-	//ln, err := net.ListenTCP("tcp", addr)
 	ln, err := net.Listen("tcp", ":31337")
 
 	if err != nil {
@@ -52,11 +46,9 @@ func Listen(srv *server.Server) (ok bool) {
 		//panic("type assertion failure")
 		//}
 
-		//tcconn := conn.(*net.TCPConn)
 		tcconn := conn.(*net.TCPConn)
 		fmt.Printf("dispatching goroutine for new connection from %v\n", tcconn.RemoteAddr())
 
-		//go client.Handle(&ipconn)
 		go client.Handle(tcconn, srv)
 
 	}
