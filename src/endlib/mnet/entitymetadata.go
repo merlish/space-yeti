@@ -6,6 +6,10 @@ import "fmt"
 
 type Metadata []byte
 
+func NewMetadata() Metadata {
+    return make([]byte, 0)
+}
+
 // note: we don't include the 'stop reading' byte, 127, here.  that's done in the conn wr funcs.
 
 func (m Metadata) addToMetadata(key int, vtype int, gen ...BytesGenerator) Metadata {

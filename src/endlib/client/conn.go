@@ -16,11 +16,12 @@ type Conn struct {
 	s     *mnet.SConn
 	raddr net.Addr
 	name  string
+    eid int32
 }
 
 func Handle(conn *net.TCPConn, srv *server.Server) {
 	// casting to get access to sets of mnet functions
-	c := &Conn{(*mnet.CConn)(conn), (*mnet.SConn)(conn), conn.RemoteAddr(), ""}
+	c := &Conn{(*mnet.CConn)(conn), (*mnet.SConn)(conn), conn.RemoteAddr(), "", 0}
 	defer conn.Close()               // then, close the underlying connection properly.
 	defer tryTellClientAboutPanic(c) // before anything else, try and kick client.
 
@@ -39,14 +40,15 @@ func Handle(conn *net.TCPConn, srv *server.Server) {
 	// ^^^ must happen before we send login request... otherwise, mc client will hang on kick. :(
 
 	// handle & respond to login request
-    myEid := <-srv.Eids
+    c.eid = <-srv.Eids
     defer func() {
-        srv.Eids <- myEid // return free eid
+        srv.Eids <- c.eid // return free eid
+        c.eid = 0
     }()
 
-    fmt.Printf("dbg: in case you care, my eid is %d\n", myEid)
+    fmt.Printf("dbg: in case you care, my eid is %d\n", c.eid)
 
-	handleLogin(c, myEid)
+	handleLogin(c, c.eid)
 
 	fmt.Println("dbg: handled login, getting inv data")
 
@@ -123,7 +125,7 @@ func Handle(conn *net.TCPConn, srv *server.Server) {
 
 	// TODO: subscribe to player movement changes
 
-	pmp := &server.PlayerMovePacket{int(myEid), sp.X, sp.Y, sp.Z, 0, 0, true}
+	pmp := server.PlayerMovePacket{c.eid, sp.X, sp.Y, sp.Z, 0, 0, true}
 
     // keep sending 'keep alive' packets to client
     go func() {
@@ -135,40 +137,20 @@ func Handle(conn *net.TCPConn, srv *server.Server) {
         }
     }()
 
-    // subscribe to player events
-    go func() {
-        defer func() { recover() }()
+    // otherPlayersHandle does its setup synchronously, then forks for its main loop.
+    // this is a pretty cool pattern.
+    otherPlayersHandle(c, srv)
 
-        pmpc := make(chan *server.PlayerMovePacket)
+    // tell the entity manager about our ent
+    srv.Entities <- server.EntitiesCreatePlayer{c.eid, c.name}
 
-        srv.Location.Subscribe <- pmpc
-
-        defer func() {
-            srv.Location.Unsubscribe <- pmpc
-
-            // drain channel
-            for _ = range pmpc {}
-        }()
-
-        for {
-            m := <-pmpc
-
-            if m.Eid != int(myEid) {
-                // hack! awful.
-                //c.s.EntityTeleport(int32(m.Eid), int32(m.X * 32), int32(m.Y * 32), int32(m.Z * 32), 0, 0)
-                // test
-                c.s.EntityTeleport(int32(m.Eid), int32(m.X * 32), int32(m.Y * 32), int32(m.Z * 32), 0, 0)
-                fmt.Printf("propagating move of %d (%d,%d,%d)(%f,%f,%f)\n", m.Eid, int32(m.X), int32(m.Y), int32(m.Z), m.X, m.Y, m.Z)
-
-            }
-
-        }
+    defer func() {
+        srv.Entities <- server.EntitiesDelete{c.eid}
     }()
 
-
     // terrible, terrible, terrible hack
-    for i := 1; i < 16; i++ {
-        if int32(i) != myEid {
+    /*for i := 1; i < 16; i++ {
+        if int32(i) != c.eid {
             c.s.SpawnNamedEntity(int32(i), fmt.Sprintf("Player%x", i), 0, 0, 0, 0, 0, 0)
             c.s.Entity(int32(i))
 
@@ -177,8 +159,9 @@ func Handle(conn *net.TCPConn, srv *server.Server) {
                 c.s.EntityEquipment(int32(i), int16(i2), int16(-1), int16(0))
             }
         }
-    }
+    }*/
 
+    fmt.Println("client/conn: dispatching digging/map func")
 
     // subscribe to digging/map events
     go func() {
@@ -187,6 +170,7 @@ func Handle(conn *net.TCPConn, srv *server.Server) {
         digch := make(chan server.DigputRequest, 1)
 
         // subscribe to digput events!
+        fmt.Println("client/digput: subscribing...")
         srv.Digput <- &server.DigputSubscribe{digch}
 
         defer func() {
@@ -212,10 +196,13 @@ func Handle(conn *net.TCPConn, srv *server.Server) {
         }
     }()
 
+    fmt.Println("client/conn: main loop")
+
 	// the main loop :D
 	for {
 		// TODO: check for flooding. (could starve resources of other threads...)
 
+        //fmt.Println("client/conn: read packet id")
 		id := c.c.ReadID()
 
 		switch id {
@@ -266,6 +253,7 @@ func Handle(conn *net.TCPConn, srv *server.Server) {
             srv.Location.Notify <- pmp
 
         case mnet.PlayerDiggingID:
+            //fmt.Println("reading player digging")
             pd := c.c.ReadPlayerDigging()
 
             ok := make(chan bool)
@@ -273,8 +261,11 @@ func Handle(conn *net.TCPConn, srv *server.Server) {
 
             if pd.Status == 0 { // started digging
                 //srv.Digput <- &server.DigputStartDig{bp, ok}
+                //fmt.Println("srv.digput <- ...")
                 srv.Digput <- &server.DigputFinishDig{bp, ok}
+                //fmt.Println("<-ok")
                 <-ok // tmp
+                //fmt.Println(":D")
             } else if pd.Status == 2 { // finished digging
                 //srv.Digput <- &server.DigputFinishDig{bp, ok}
                 //<-ok // tmp
@@ -286,11 +277,32 @@ func Handle(conn *net.TCPConn, srv *server.Server) {
                 panic(fmt.Sprintf("digging::(%d) not implemented yet (what is it?)", pd.Status))
             }
 
-            fmt.Println("processed digput")
+            //fmt.Println("processed digput")
 
         case mnet.PluginMessageID:
             _ = c.c.ReadPluginMessage()
 
+        case mnet.EntityActionID:
+            ea := c.c.ReadEntityAction()
+
+            if ea.EID != c.eid {
+                panic("client: Entity Action (0x13) sent c->s _not_ referring to the player... weird!")
+            }
+
+            switch ea.ActionID {
+            case 1: // crouch
+                srv.Entities <- server.EntitiesCrouchUpdate{c.eid, true}
+            case 2: // uncrouch
+                srv.Entities <- server.EntitiesCrouchUpdate{c.eid, false}
+            case 3: // leave bed
+                panic("TODO: 0x13 leave bed")
+            case 4: // start sprinting
+                srv.Entities <- server.EntitiesSprintUpdate { c.eid, true }
+            case 5: // stop sprinting
+                srv.Entities <- server.EntitiesSprintUpdate { c.eid, false }
+            default:
+                panic(fmt.Sprintf("client/conn: i have no idea what 0x13 entity action '%v' is!", ea.ActionID))
+            }
 
 		default:
 			panic(fmt.Sprintf("packet with id 0x%x not implemented", id))

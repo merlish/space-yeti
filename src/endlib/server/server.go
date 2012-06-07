@@ -18,12 +18,13 @@ type Server struct {
 	Location  *PlayersServer
     Digput    chan DigputRequest
     Eids      chan int32
+    Entities  chan interface{}
 }
 
 type PlayersServer struct {
-	Subscribe   chan (chan *PlayerMovePacket)
-	Unsubscribe chan (chan *PlayerMovePacket)
-	Notify      chan *PlayerMovePacket
+	Subscribe   chan (chan interface{})
+	Unsubscribe chan (chan interface{})
+	Notify      chan interface{}
 }
 
 func New() *Server {
@@ -32,7 +33,7 @@ func New() *Server {
 	mapIn := make(chan MapRequest)
 	go mapServer(mapIn)
 
-	plIn := &PlayersServer{make(chan (chan *PlayerMovePacket)), make(chan (chan *PlayerMovePacket)), make(chan *PlayerMovePacket)}
+	plIn := &PlayersServer{make(chan (chan interface{})), make(chan (chan interface{})), make(chan interface{})}
 	go playersServer(plIn.Subscribe, plIn.Unsubscribe, plIn.Notify)
 
     dpIn := make(chan DigputRequest)
@@ -41,6 +42,9 @@ func New() *Server {
     eids := make(chan int32)
     go eidServer(eids)
 
-	return &Server{invIn, mapIn, plIn, dpIn, eids}
+    ents := make(chan interface{})
+    go entityManager(ents, plIn.Notify)
+
+	return &Server{invIn, mapIn, plIn, dpIn, eids, ents}
 }
 
