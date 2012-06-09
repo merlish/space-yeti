@@ -4,7 +4,7 @@ import "fmt"
 import "endlib/mnet"
 
 const (
-    player = iota
+    EntityPlayer = iota
 )
 
 type entityMetadata struct {
@@ -34,6 +34,15 @@ type EntitiesSprintUpdate struct {
     Sprinting bool
 }
 
+type EntitiesRequestSummary struct {
+    Ret chan *EntitiesSummaryResponse
+}
+
+type EntitiesSummaryResponse struct {
+    EntMetadata map(int32) UpdateEntityMetadataPacket
+    EntType map(int32) int
+}
+
 func entityManager(in chan interface{}, pin chan interface{}) {
 
     for {
@@ -43,7 +52,7 @@ func entityManager(in chan interface{}, pin chan interface{}) {
         case EntitiesCreatePlayer:
             ecp := im.(EntitiesCreatePlayer)
 
-            em := &entityMetadata{ecp.Eid, player, byte(0)}
+            em := &entityMetadata{ecp.Eid, EntityPlayer, byte(0)}
             entityData[ecp.Eid] = em
 
         case EntitiesCrouchUpdate:
@@ -83,6 +92,9 @@ func doUpdate(eid int32, playersIn chan interface{}, uf func(*entityMetadata)) {
 }
 
 func postUpdate(m *entityMetadata, playersIn chan interface{}) {
+    playersIn <- makeUpdate(m)
+
+func makeUpdate(m *entityMetadata) UpdateEntityMetadataPacket {
     // format dat metadata
     fm := mnet.NewMetadata().AddToMetadataSByte(0, int8(m.Flags)).AddToMetadataShort(1, 300)
     fm = fm.AddToMetadataInt(8, 0)
@@ -91,7 +103,7 @@ func postUpdate(m *entityMetadata, playersIn chan interface{}) {
         fm = fm.AddToMetadataInt(12, 0)
     }*/
 
-    playersIn <- UpdateEntityMetadataPacket{m.Eid, fm}
+    return UpdateEntityMetadataPacket{m.Eid, fm}
 }
 
 func getMetadata(eid int32) *entityMetadata {

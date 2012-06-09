@@ -43,7 +43,7 @@ func Handle(conn *net.TCPConn, srv *server.Server) {
     c.eid = <-srv.Eids
     defer func() {
         srv.Eids <- c.eid // return free eid
-        c.eid = 0
+        //c.eid = 0  // actually, don't do this... other things need our eid for cleanup!
     }()
 
     fmt.Printf("dbg: in case you care, my eid is %d\n", c.eid)
@@ -139,12 +139,19 @@ func Handle(conn *net.TCPConn, srv *server.Server) {
 
     // otherPlayersHandle does its setup synchronously, then forks for its main loop.
     // this is a pretty cool pattern.
-    otherPlayersHandle(c, srv)
+    opQuit := make(chan int)
+    otherPlayersHandle(c, opQuit, srv)
+
+    defer func() {
+        fmt.Println("dbg: client/conn: telling client/o_p to quit")
+        opQuit <- 0
+    }()
 
     // tell the entity manager about our ent
     srv.Entities <- server.EntitiesCreatePlayer{c.eid, c.name}
 
     defer func() {
+        fmt.Printf("in defer func() srv.ents <- delete{eid}\n")
         srv.Entities <- server.EntitiesDelete{c.eid}
     }()
 
@@ -221,6 +228,8 @@ func Handle(conn *net.TCPConn, srv *server.Server) {
 			pmp.Yaw = ppal.Yaw
 			pmp.Pitch = ppal.Pitch
 			pmp.OnGround = ppal.OnGround
+
+            //fmt.Printf("yaw f: %v, pitch f: %v\n", ppal.Yaw, ppal.Pitch)
 
             //fmt.Printf("Debug: PPAL: %f,%f,%f\n", pmp.X, pmp.Y, pmp.Z)
 

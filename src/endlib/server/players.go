@@ -64,6 +64,12 @@ func playersServer(subscribe chan (chan interface{}), unsubscribe chan (chan int
                 fmt.Println("dbg: server/players.go: got PSP")
                 psp := n.(PlayerStatusPacket)
 
+                fmt.Print("dbg: PSP: connected array currently looks like [")
+                for _, vv := range connected {
+                    fmt.Printf("%v, ", vv)
+                }
+                fmt.Print("]\n")
+
                 // are they already in our list?
                 inList := false
                 for k, v := range connected {
@@ -86,6 +92,13 @@ func playersServer(subscribe chan (chan interface{}), unsubscribe chan (chan int
                     fmt.Printf("srv/players: caught player with eid %v repeating status notification connected=%v; dropped\n", psp.Eid, psp.Connected)
                     continue
                 }
+
+
+                fmt.Print("dbg: PSP: !!AFTER!! connected array currently looks like [")
+                for _, vv := range connected {
+                    fmt.Printf("%v, ", vv)
+                }
+                fmt.Print("]\n")
 
                 fmt.Println("dbg: server/players.go: made it through PSP special case")
             }
